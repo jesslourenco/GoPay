@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -70,6 +72,7 @@ func main() {
 	router := internal.Router(apiHandler)
 
 	initDB()
+	initAccounts(accountRepo)
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
 	log.Info().Msg("Server started at port :8080")
@@ -78,4 +81,33 @@ func main() {
 		Fatal().
 		Err(http.ListenAndServe(":8080", router)).
 		Msg("Server closed")
+}
+
+func initAccounts(accountRepo repository.AccountRepo) {
+	accounts := []models.Account{
+		{
+			Name:     "Shankar",
+			LastName: "Nakai",
+		},
+		{
+			Name:     "Jessica",
+			LastName: "Lourenco",
+		},
+		{
+			Name:     "Caio",
+			LastName: "Henrique",
+		},
+		{
+			Name:     "Karina",
+			LastName: "Domingues",
+		},
+	}
+
+	for _, acc := range accounts {
+		id, err := accountRepo.Create(context.Background(), acc.Name, acc.LastName)
+		if err != nil {
+			log.Err(err).Msg("something went wrong")
+		}
+		log.Info().Msg(fmt.Sprintf("%s => %s", id, acc.Name))
+	}
 }

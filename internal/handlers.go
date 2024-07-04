@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gopay/internal/models"
+	"github.com/gopay/internal/repository"
 	"github.com/gopay/internal/service"
 	"github.com/gopay/internal/utils"
 	jsoniter "github.com/json-iterator/go"
@@ -51,6 +52,7 @@ func (h *apiHandler) Register(router *httprouter.Router) {
 	router.Handle(http.MethodPost, "/accounts", h.PostAccount)
 	router.Handle(http.MethodGet, "/accounts/:account-id/transactions", h.GetAllTransactions)
 	router.Handle(http.MethodGet, "/transactions/:transaction-id", h.GetTransaction)
+	router.Handle(http.MethodPost, "/accounts/:account-id/deposit", h.Deposit)
 	router.Handle(http.MethodPost, "/transactions", h.PostTransaction)
 	router.Handle(http.MethodGet, "/accounts/:account-id/balance", h.GetBalance)
 }
@@ -177,6 +179,47 @@ func (h *apiHandler) GetTransaction(w http.ResponseWriter, r *http.Request, para
 		return
 	}
 	utils.WithPayload(w, http.StatusOK, res)
+}
+
+func (h *apiHandler) Deposit(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	owner := params.ByName(AccountIdParam)
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, OneMegabyte))
+	if err != nil {
+		log.Error().Err(err).Msg(err.Error())
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer r.Body.Close()
+
+	amount := models.DepositReq{}
+	err = jsoniter.Unmarshal(body, &amount)
+	if err != nil {
+		log.Error().Err(err).Msg(err.Error())
+		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err = h.transactionSvc.Deposit(r.Context(), owner, amount.Amount)
+	if err == service.ErrInvalidAmount {
+		log.Error().Err(err).Msg("Handler::Deposit")
+		utils.ErrorWithMessage(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err == repository.ErrAccountNotFound {
+		log.Error().Err(err).Msg("Handler::Deposit")
+		utils.ErrorWithMessage(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::Deposit")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.WithPayload(w, http.StatusCreated, nil)
 }
 
 func (h *apiHandler) PostTransaction(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
