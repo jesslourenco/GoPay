@@ -132,27 +132,24 @@ func (h *apiHandler) PostAccount(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (h *apiHandler) GetAllTransactions(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	transactions := []*models.Transaction{}
-
 	accountId := params.ByName(AccountIdParam)
 
-	_, found := models.Accounts[accountId]
-
-	if !found {
-		log.Error().Err(ErrAccountNotFound).Msg("Handler::GetAllTransactions")
-		utils.ErrorWithMessage(w, http.StatusNotFound, ErrAccountNotFound.Error())
+	transactions, err := h.transactionSvc.GetAllTransactions(r.Context(), accountId)
+	if err == repository.ErrAccountNotFound {
+		log.Error().Err(err).Msg("Handler::GetAllTransactions")
+		utils.ErrorWithMessage(w, http.StatusNotFound, err.Error())
 		return
 	}
 
-	for _, transaction := range models.Transactions {
-		if transaction.Owner == accountId {
-			transactions = append(transactions, transaction)
-		}
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::GetAllTransactions")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	res, err := jsoniter.Marshal(&transactions)
 	if err != nil {
-		log.Error().Err(err).Msg(err.Error())
+		log.Error().Err(err).Msg("Handler::GetAllTransactions")
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -163,20 +160,27 @@ func (h *apiHandler) GetAllTransactions(w http.ResponseWriter, r *http.Request, 
 func (h *apiHandler) GetTransaction(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	id := params.ByName(TransactionIdParam)
 
-	transaction, found := models.Transactions[id]
+	transaction, err := h.transactionSvc.GetTransaction(r.Context(), id)
 
-	if !found {
-		log.Error().Err(ErrTransactionNotFound).Msg("Handler::GetTransaction")
-		utils.ErrorWithMessage(w, http.StatusNotFound, ErrTransactionNotFound.Error())
+	if err == repository.ErrTransactionNotFound {
+		log.Error().Err(err).Msg("Handler::GetTransaction")
+		utils.ErrorWithMessage(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::GetTransaction")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	res, err := jsoniter.Marshal(&transaction)
 	if err != nil {
-		log.Error().Err(err).Msg(err.Error())
+		log.Error().Err(err).Msg("Handler::GetTransaction")
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
@@ -269,32 +273,27 @@ func (h *apiHandler) Withdraw(w http.ResponseWriter, r *http.Request, params htt
 }
 
 func (h *apiHandler) GetBalance(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	id := params.ByName(AccountIdParam)
+	accountId := params.ByName(AccountIdParam)
 
-	_, found := models.Accounts[id]
-
-	if !found {
-		log.Error().Err(ErrAccountNotFound).Msg("Handler::GetBalance")
-		utils.ErrorWithMessage(w, http.StatusNotFound, ErrAccountNotFound.Error())
+	balance, err := h.transactionSvc.GetBalance(r.Context(), accountId)
+	if err == repository.ErrAccountNotFound {
+		log.Error().Err(err).Msg("Handler::GetBalance")
+		utils.ErrorWithMessage(w, http.StatusNotFound, err.Error())
 		return
 	}
 
-	balance := models.Balance{
-		AccountId: id,
-		Amount:    0.00,
-	}
-
-	for _, transaction := range models.Transactions {
-		if transaction.Owner == id && !transaction.IsConsumed {
-			balance.Amount += float64(transaction.Amount)
-		}
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::GetBalance")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	res, err := jsoniter.Marshal(&balance)
 	if err != nil {
-		log.Error().Err(err).Msg(err.Error())
+		log.Error().Err(err).Msg("Handler::GetBalance")
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	utils.WithPayload(w, http.StatusOK, res)
 }
