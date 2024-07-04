@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/gopay/internal/models"
 	"github.com/gopay/internal/repository"
@@ -53,7 +52,7 @@ func (h *apiHandler) Register(router *httprouter.Router) {
 	router.Handle(http.MethodGet, "/accounts/:account-id/transactions", h.GetAllTransactions)
 	router.Handle(http.MethodGet, "/transactions/:transaction-id", h.GetTransaction)
 	router.Handle(http.MethodPost, "/accounts/:account-id/deposit", h.Deposit)
-	router.Handle(http.MethodPost, "/transactions", h.PostTransaction)
+	router.Handle(http.MethodPost, "/accounts/:account-id/withdraw", h.Withdraw)
 	router.Handle(http.MethodGet, "/accounts/:account-id/balance", h.GetBalance)
 }
 
@@ -192,7 +191,7 @@ func (h *apiHandler) Deposit(w http.ResponseWriter, r *http.Request, params http
 	}
 	defer r.Body.Close()
 
-	amount := models.DepositReq{}
+	amount := models.AmountReq{}
 	err = jsoniter.Unmarshal(body, &amount)
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
@@ -222,13 +221,8 @@ func (h *apiHandler) Deposit(w http.ResponseWriter, r *http.Request, params http
 	utils.WithPayload(w, http.StatusCreated, nil)
 }
 
-func (h *apiHandler) PostTransaction(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	id := utils.GetTransactionUUID()
-
-	transaction := &models.Transaction{}
-	transaction.TransactionId = id
-	transaction.CreatedAt = time.Now()
-	transaction.IsConsumed = false
+func (h *apiHandler) Withdraw(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	owner := params.ByName(AccountIdParam)
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, OneMegabyte))
 	if err != nil {
@@ -236,53 +230,38 @@ func (h *apiHandler) PostTransaction(w http.ResponseWriter, r *http.Request, _ h
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	defer r.Body.Close()
-	err = jsoniter.Unmarshal(body, &transaction)
+
+	amount := models.AmountReq{}
+	err = jsoniter.Unmarshal(body, &amount)
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
 		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
-	_, found := models.Accounts[transaction.Receiver]
-	if !found {
-		log.Error().Err(ErrReceiverNotFound).Msg("Handler::PostTransaction")
-		utils.ErrorWithMessage(w, http.StatusNotFound, ErrReceiverNotFound.Error())
+	err = h.transactionSvc.Withdraw(r.Context(), owner, amount.Amount)
+	if err == service.ErrInvalidAmount {
+		log.Error().Err(err).Msg("Handler::Withdraw")
+		utils.ErrorWithMessage(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	_, found = models.Accounts[transaction.Sender]
-	if !found {
-		log.Error().Err(ErrSenderNotFound).Msg("Handler::PostTransaction")
-		utils.ErrorWithMessage(w, http.StatusNotFound, ErrSenderNotFound.Error())
+	if err == repository.ErrAccountNotFound {
+		log.Error().Err(err).Msg("Handler::Withdraw")
+		utils.ErrorWithMessage(w, http.StatusNotFound, err.Error())
 		return
 	}
 
-	transaction.Owner = transaction.Sender
-	var success bool
-
-	if transaction.Sender == transaction.Receiver {
-		if transaction.Amount > 0 {
-			success = utils.Deposit(transaction)
-		} else {
-			success = utils.Withdrawal(transaction)
-		}
-
-		if !success {
-			log.Error().Err(ErrInsufficentBalance).Msg("Handler::PostTransaction")
-			utils.ErrorWithMessage(w, http.StatusForbidden, ErrInsufficentBalance.Error())
-			return
-		}
-
-		utils.WithPayload(w, http.StatusCreated, nil)
+	if err == service.ErrInsufficentBalance {
+		log.Error().Err(err).Msg("Handler::Withdraw")
+		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
-	success = utils.Pay(transaction)
-	if !success {
-		log.Error().Err(ErrInsufficentBalance).Msg("Handler::PostTransaction")
-		utils.ErrorWithMessage(w, http.StatusForbidden, ErrInsufficentBalance.Error())
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::Withdraw")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 

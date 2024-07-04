@@ -1,5 +1,5 @@
 package models
 
-type DepositReq struct {
+type AmountReq struct {
 	Amount float32 `json:"amount"`
 }
