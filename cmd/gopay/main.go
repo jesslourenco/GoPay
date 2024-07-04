@@ -9,6 +9,8 @@ import (
 
 	"github.com/gopay/internal"
 	"github.com/gopay/internal/models"
+	"github.com/gopay/internal/repository"
+	"github.com/gopay/internal/service"
 )
 
 func initDB() {
@@ -59,7 +61,14 @@ func initDB() {
 }
 
 func main() {
-	router := internal.Router(internal.Routes())
+	transactionRepo := repository.NewTransactionRepo()
+	accountRepo := repository.NewAccountRepo()
+	transactionSvc := service.NewTransactionService(transactionRepo, accountRepo)
+
+	apiHandler := internal.NewAPIHandler(transactionSvc)
+
+	router := internal.Router(apiHandler)
+
 	initDB()
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gopay/internal/models"
+	"github.com/gopay/internal/service"
 	"github.com/gopay/internal/utils"
 	jsoniter "github.com/json-iterator/go"
 
@@ -29,7 +30,32 @@ var (
 	ErrInsufficentBalance  = errors.New("insufficient balance")
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+type HandlerRegister interface {
+	Register(router *httprouter.Router)
+}
+
+type apiHandler struct {
+	transactionSvc service.TransactionService
+}
+
+func NewAPIHandler(transactionSvc service.TransactionService) *apiHandler {
+	return &apiHandler{
+		transactionSvc: transactionSvc,
+	}
+}
+
+func (h *apiHandler) Register(router *httprouter.Router) {
+	router.Handle(http.MethodGet, "/", h.Index)
+	router.Handle(http.MethodGet, "/accounts", h.GetAllAccounts)
+	router.Handle(http.MethodGet, "/accounts/:account-id", h.GetAccount)
+	router.Handle(http.MethodPost, "/accounts", h.PostAccount)
+	router.Handle(http.MethodGet, "/accounts/:account-id/transactions", h.GetAllTransactions)
+	router.Handle(http.MethodGet, "/transactions/:transaction-id", h.GetTransaction)
+	router.Handle(http.MethodPost, "/transactions", h.PostTransaction)
+	router.Handle(http.MethodGet, "/accounts/:account-id/balance", h.GetBalance)
+}
+
+func (h *apiHandler) Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF8")
 
 	res, err := jsoniter.Marshal("Welcome to GoPay!")
@@ -42,7 +68,7 @@ func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
-func GetAllAccounts(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *apiHandler) GetAllAccounts(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	accs := []*models.Account{}
 
 	for _, account := range models.Accounts {
@@ -50,7 +76,6 @@ func GetAllAccounts(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 	}
 
 	res, err := jsoniter.Marshal(&accs)
-
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
@@ -60,7 +85,7 @@ func GetAllAccounts(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
-func GetAccount(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func (h *apiHandler) GetAccount(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	id := params.ByName(AccountIdParam)
 
 	account, found := models.Accounts[id]
@@ -80,7 +105,7 @@ func GetAccount(w http.ResponseWriter, r *http.Request, params httprouter.Params
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
-func PostAccount(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *apiHandler) PostAccount(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	id := utils.GetAccountUUID()
 
 	account := &models.Account{}
@@ -95,7 +120,6 @@ func PostAccount(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	defer r.Body.Close()
 	err = jsoniter.Unmarshal(body, &account)
-
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
 		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
@@ -106,7 +130,7 @@ func PostAccount(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	utils.WithPayload(w, http.StatusCreated, nil)
 }
 
-func GetAllTransactions(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func (h *apiHandler) GetAllTransactions(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	transactions := []*models.Transaction{}
 
 	accountId := params.ByName(AccountIdParam)
@@ -135,7 +159,7 @@ func GetAllTransactions(w http.ResponseWriter, r *http.Request, params httproute
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
-func GetTransaction(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func (h *apiHandler) GetTransaction(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	id := params.ByName(TransactionIdParam)
 
 	transaction, found := models.Transactions[id]
@@ -155,7 +179,7 @@ func GetTransaction(w http.ResponseWriter, r *http.Request, params httprouter.Pa
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
-func PostTransaction(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *apiHandler) PostTransaction(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	id := utils.GetTransactionUUID()
 
 	transaction := &models.Transaction{}
@@ -172,7 +196,6 @@ func PostTransaction(w http.ResponseWriter, r *http.Request, _ httprouter.Params
 
 	defer r.Body.Close()
 	err = jsoniter.Unmarshal(body, &transaction)
-
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
 		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
@@ -223,7 +246,7 @@ func PostTransaction(w http.ResponseWriter, r *http.Request, _ httprouter.Params
 	utils.WithPayload(w, http.StatusCreated, nil)
 }
 
-func GetBalance(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+func (h *apiHandler) GetBalance(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	id := params.ByName(AccountIdParam)
 
 	_, found := models.Accounts[id]
