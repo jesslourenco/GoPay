@@ -35,6 +35,9 @@ func resetClock() {
 type TransactionService interface {
 	Deposit(ctx context.Context, owner string, amount float32) error
 	Withdraw(ctx context.Context, owner string, amount float32) error
+	GetTransaction(ctx context.Context, id string) (models.Transaction, error)
+	GetAllTransactions(ctx context.Context, accId string) ([]models.Transaction, error)
+	GetBalance(ctx context.Context, accId string) (models.Balance, error)
 }
 
 var _ TransactionService = (*transactionServiceImpl)(nil)
@@ -49,6 +52,28 @@ func NewTransactionService(transactionRepo repository.TransactionRepo, accountRe
 		transactionRepo: transactionRepo,
 		accountRepo:     accountRepo,
 	}
+}
+
+func (r *transactionServiceImpl) GetBalance(ctx context.Context, accId string) (models.Balance, error) {
+	_, err := r.accountRepo.FindOne(ctx, accId)
+	if err != nil {
+		return models.Balance{}, err
+	}
+
+	return r.transactionRepo.GetBalance(ctx, accId)
+}
+
+func (r *transactionServiceImpl) GetAllTransactions(ctx context.Context, accId string) ([]models.Transaction, error) {
+	_, err := r.accountRepo.FindOne(ctx, accId)
+	if err != nil {
+		return []models.Transaction{}, err
+	}
+
+	return r.transactionRepo.FindAll(ctx, accId)
+}
+
+func (r *transactionServiceImpl) GetTransaction(ctx context.Context, id string) (models.Transaction, error) {
+	return r.transactionRepo.FindOne(ctx, id)
 }
 
 func (r *transactionServiceImpl) Deposit(ctx context.Context, owner string, amount float32) error {
