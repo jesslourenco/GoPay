@@ -2,16 +2,15 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	"github.com/gopay/internal/models"
 	"github.com/gopay/internal/repository"
 )
 
 type AccountService interface {
-	FindAll(ctx context.Context) ([]models.Account, error)
-	FindOne(ctx context.Context, id string) (models.Account, error)
-	Create(ctx context.Context, name string, lastname string) (string, error)
+	GetAllAccounts(ctx context.Context) ([]models.Account, error)
+	GetAccount(ctx context.Context, id string) (models.Account, error)
+	CreateAccount(ctx context.Context, name string, lastname string) (string, error)
 }
 
 var _ AccountService = (*accountServiceImpl)(nil)
@@ -26,14 +25,14 @@ func NewAccountService(accountRepo repository.AccountRepo) *accountServiceImpl {
 	}
 }
 
-func (r *accountServiceImpl) FindAll(ctx context.Context) ([]models.Account, error) {
-	return []models.Account{}, errors.New("not yet implemented")
+func (r *accountServiceImpl) GetAllAccounts(ctx context.Context) ([]models.Account, error) {
+	return r.accountRepo.FindAll(ctx)
 }
 
-func (r *accountServiceImpl) FindOne(ctx context.Context, id string) (models.Account, error) {
-	return models.Account{}, errors.New("not yet implemented")
+func (r *accountServiceImpl) GetAccount(ctx context.Context, id string) (models.Account, error) {
+	return r.accountRepo.FindOne(ctx, id)
 }
 
-func (r *accountServiceImpl) Create(ctx context.Context, name string, lastname string) (string, error) {
-	return "", errors.New("not yet implemented")
+func (r *accountServiceImpl) CreateAccount(ctx context.Context, name string, lastname string) (string, error) {
+	return r.accountRepo.Create(ctx, name, lastname)
 }
