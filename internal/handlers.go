@@ -36,11 +36,13 @@ type HandlerRegister interface {
 
 type apiHandler struct {
 	transactionSvc service.TransactionService
+	accountSvc     service.AccountService
 }
 
-func NewAPIHandler(transactionSvc service.TransactionService) *apiHandler {
+func NewAPIHandler(transactionSvc service.TransactionService, accountSvc service.AccountService) *apiHandler {
 	return &apiHandler{
 		transactionSvc: transactionSvc,
+		accountSvc:     accountSvc,
 	}
 }
 
@@ -70,15 +72,16 @@ func (h *apiHandler) Index(w http.ResponseWriter, r *http.Request, _ httprouter.
 }
 
 func (h *apiHandler) GetAllAccounts(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	accs := []*models.Account{}
-
-	for _, account := range models.Accounts {
-		accs = append(accs, account)
+	accounts, err := h.accountSvc.GetAllAccounts(r.Context())
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::GetAllAccounts")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	res, err := jsoniter.Marshal(&accs)
+	res, err := jsoniter.Marshal(&accounts)
 	if err != nil {
-		log.Error().Err(err).Msg(err.Error())
+		log.Error().Err(err).Msg("Handler::GetAllAccounts")
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -89,37 +92,39 @@ func (h *apiHandler) GetAllAccounts(w http.ResponseWriter, r *http.Request, _ ht
 func (h *apiHandler) GetAccount(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	id := params.ByName(AccountIdParam)
 
-	account, found := models.Accounts[id]
+	account, err := h.accountSvc.GetAccount(r.Context(), id)
+	if err == ErrAccountNotFound {
+		log.Error().Err(err).Msg("Handler::GetAccount")
+		utils.ErrorWithMessage(w, http.StatusNotFound, err.Error())
+		return
+	}
 
-	if !found {
-		log.Error().Err(ErrAccountNotFound).Msg("Handler::GetAccount")
-		utils.ErrorWithMessage(w, http.StatusNotFound, ErrAccountNotFound.Error())
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::GetAccount")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	res, err := jsoniter.Marshal(&account)
 	if err != nil {
-		log.Error().Err(err).Msg(err.Error())
+		log.Error().Err(err).Msg("Handler::GetAccount")
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
 func (h *apiHandler) PostAccount(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	id := utils.GetAccountUUID()
-
-	account := &models.Account{}
-	account.AccountId = id
-
 	body, err := io.ReadAll(io.LimitReader(r.Body, OneMegabyte))
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	defer r.Body.Close()
+
+	account := models.AccReq{}
 	err = jsoniter.Unmarshal(body, &account)
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
@@ -127,7 +132,19 @@ func (h *apiHandler) PostAccount(w http.ResponseWriter, r *http.Request, _ httpr
 		return
 	}
 
-	models.Accounts[account.AccountId] = account
+	_, err = h.accountSvc.CreateAccount(r.Context(), account.Name, account.LastName)
+	if err == repository.ErrMissingParams {
+		log.Error().Err(err).Msg("Handler::PostAccount")
+		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::PostAccount")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	utils.WithPayload(w, http.StatusCreated, nil)
 }
 
