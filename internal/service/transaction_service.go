@@ -86,16 +86,7 @@ func (r *transactionServiceImpl) Deposit(ctx context.Context, owner string, amou
 		return err
 	}
 
-	transaction := models.Transaction{
-		CreatedAt:  clockNow(),
-		IsConsumed: false,
-		Owner:      owner,
-		Sender:     owner,
-		Receiver:   owner,
-		Amount:     amount,
-	}
-
-	return r.transactionRepo.Create(ctx, transaction)
+	return r.credit(ctx, owner, owner, amount)
 }
 
 func (r *transactionServiceImpl) Withdraw(ctx context.Context, owner string, amount float32) error {
@@ -131,6 +122,23 @@ func (r *transactionServiceImpl) Withdraw(ctx context.Context, owner string, amo
 	}
 
 	return nil
+}
+
+func (r *transactionServiceImpl) credit(ctx context.Context, owner string, receiver string, amount float32) error {
+	if amount <= 0 {
+		return ErrInvalidAmount
+	}
+
+	transaction := models.Transaction{
+		CreatedAt:  clockNow(),
+		IsConsumed: false,
+		Owner:      owner,
+		Sender:     owner,
+		Receiver:   receiver,
+		Amount:     amount,
+	}
+
+	return r.transactionRepo.Create(ctx, transaction)
 }
 
 func (r *transactionServiceImpl) debit(ctx context.Context, owner string, receiver string, amount float32) ([]string, error) {
@@ -180,15 +188,7 @@ func (r *transactionServiceImpl) debit(ctx context.Context, owner string, receiv
 		}
 
 		if remaining > 0 {
-			transaction := models.Transaction{
-				CreatedAt:  clockNow(),
-				IsConsumed: false,
-				Owner:      owner,
-				Sender:     owner,
-				Receiver:   receiver,
-				Amount:     t.Amount - debit,
-			}
-			err = r.transactionRepo.Create(ctx, transaction)
+			err := r.credit(ctx, owner, receiver, t.Amount-debit)
 			if err != nil {
 				go func() {
 					err := utils.Retry(func() error {
