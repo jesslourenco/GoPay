@@ -50,7 +50,7 @@ func (h *apiHandler) Register(router *httprouter.Router) {
 	router.Handle(http.MethodGet, "/", h.Index)
 	router.Handle(http.MethodGet, "/accounts", h.GetAllAccounts)
 	router.Handle(http.MethodGet, "/accounts/:account-id", h.GetAccount)
-	router.Handle(http.MethodPost, "/accounts", h.PostAccount)
+	router.Handle(http.MethodPost, "/accounts", h.CreateAccount)
 	router.Handle(http.MethodGet, "/accounts/:account-id/transactions", h.GetAllTransactions)
 	router.Handle(http.MethodGet, "/transactions/:transaction-id", h.GetTransaction)
 	router.Handle(http.MethodPost, "/accounts/:account-id/deposit", h.Deposit)
@@ -115,7 +115,7 @@ func (h *apiHandler) GetAccount(w http.ResponseWriter, r *http.Request, params h
 	utils.WithPayload(w, http.StatusOK, res)
 }
 
-func (h *apiHandler) PostAccount(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *apiHandler) CreateAccount(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, OneMegabyte))
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
