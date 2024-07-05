@@ -159,6 +159,8 @@ func (r *transactionServiceImpl) Pay(ctx context.Context, owner string, receiver
 		Amount:     -amount,
 	}
 
+	log.Info().Msg("error here x")
+
 	err = r.transactionRepo.Create(ctx, transaction)
 	if err != nil {
 		go func() {
@@ -170,6 +172,8 @@ func (r *transactionServiceImpl) Pay(ctx context.Context, owner string, receiver
 		log.Error().Err(err)
 		return ErrFailedDebitOperation
 	}
+
+	log.Info().Msg("error here y")
 
 	err = r.credit(ctx, receiver, owner, receiver, amount)
 	if err != nil {
