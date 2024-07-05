@@ -66,8 +66,9 @@ func main() {
 	transactionRepo := repository.NewTransactionRepo()
 	accountRepo := repository.NewAccountRepo()
 	transactionSvc := service.NewTransactionService(transactionRepo, accountRepo)
+	accountSvc := service.NewAccountService(accountRepo)
 
-	apiHandler := internal.NewAPIHandler(transactionSvc)
+	apiHandler := internal.NewAPIHandler(transactionSvc, accountSvc)
 
 	router := internal.Router(apiHandler)
 
