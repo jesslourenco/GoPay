@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/gopay/internal/models"
@@ -15,6 +16,8 @@ var (
 	ErrInvalidAmount        = errors.New("amount cannot be less or equal to zero")
 	ErrInsufficentBalance   = errors.New("insufficient balance")
 	ErrFailedDebitOperation = errors.New("debit operation  unsuccessful ")
+	ErrFaileCreditOperation = errors.New("credit operation  unsuccessful ")
+	ErrInvalidPaymentOp     = errors.New("sender and receiver accounts must be different")
 )
 
 var nowOriginal = func() time.Time {
@@ -35,6 +38,7 @@ func resetClock() {
 type TransactionService interface {
 	Deposit(ctx context.Context, owner string, amount float32) error
 	Withdraw(ctx context.Context, owner string, amount float32) error
+	Pay(ctx context.Context, owner string, receiver string, amount float32) error
 	GetTransaction(ctx context.Context, id string) (models.Transaction, error)
 	GetAllTransactions(ctx context.Context, accId string) ([]models.Transaction, error)
 	GetBalance(ctx context.Context, accId string) (models.Balance, error)
@@ -86,7 +90,7 @@ func (r *transactionServiceImpl) Deposit(ctx context.Context, owner string, amou
 		return err
 	}
 
-	return r.credit(ctx, owner, owner, amount)
+	return r.credit(ctx, owner, owner, owner, amount)
 }
 
 func (r *transactionServiceImpl) Withdraw(ctx context.Context, owner string, amount float32) error {
@@ -124,7 +128,65 @@ func (r *transactionServiceImpl) Withdraw(ctx context.Context, owner string, amo
 	return nil
 }
 
-func (r *transactionServiceImpl) credit(ctx context.Context, owner string, receiver string, amount float32) error {
+func (r *transactionServiceImpl) Pay(ctx context.Context, owner string, receiver string, amount float32) error {
+	if owner == receiver {
+		return ErrInvalidPaymentOp
+	}
+
+	_, err := r.accountRepo.FindOne(ctx, owner)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.accountRepo.FindOne(ctx, receiver)
+	if err != nil {
+		return err
+	}
+
+	amount = float32(math.Abs(float64(amount)))
+
+	consumed, err := r.debit(ctx, owner, owner, -amount)
+	if err != nil {
+		return err
+	}
+
+	transaction := models.Transaction{
+		CreatedAt:  clockNow(),
+		IsConsumed: true,
+		Owner:      owner,
+		Sender:     owner,
+		Receiver:   receiver,
+		Amount:     -amount,
+	}
+
+	err = r.transactionRepo.Create(ctx, transaction)
+	if err != nil {
+		go func() {
+			err := utils.Retry(func() error {
+				return r.transactionRepo.RollBackConsumed(ctx, consumed)
+			}, "rollback of MarkAsConsumed")
+			log.Error().Err(err)
+		}()
+		log.Error().Err(err)
+		return ErrFailedDebitOperation
+	}
+
+	err = r.credit(ctx, receiver, owner, receiver, amount)
+	if err != nil {
+		go func() {
+			err := utils.Retry(func() error {
+				return r.transactionRepo.RollBackConsumed(ctx, consumed)
+			}, "rollback of MarkAsConsumed")
+			log.Error().Err(err)
+		}()
+		log.Error().Err(err)
+		return ErrFaileCreditOperation
+	}
+
+	return nil
+}
+
+func (r *transactionServiceImpl) credit(ctx context.Context, owner string, sender string, receiver string, amount float32) error {
 	if amount <= 0 {
 		return ErrInvalidAmount
 	}
@@ -133,7 +195,7 @@ func (r *transactionServiceImpl) credit(ctx context.Context, owner string, recei
 		CreatedAt:  clockNow(),
 		IsConsumed: false,
 		Owner:      owner,
-		Sender:     owner,
+		Sender:     sender,
 		Receiver:   receiver,
 		Amount:     amount,
 	}
@@ -188,7 +250,7 @@ func (r *transactionServiceImpl) debit(ctx context.Context, owner string, receiv
 		}
 
 		if remaining > 0 {
-			err := r.credit(ctx, owner, receiver, t.Amount-debit)
+			err := r.credit(ctx, owner, owner, receiver, t.Amount-debit)
 			if err != nil {
 				go func() {
 					err := utils.Retry(func() error {
