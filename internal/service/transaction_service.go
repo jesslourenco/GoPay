@@ -161,24 +161,24 @@ func (r *transactionServiceImpl) Pay(ctx context.Context, owner string, receiver
 
 	err = r.transactionRepo.Create(ctx, transaction)
 	if err != nil {
-		go func() {
+		utils.Go(func() {
 			err := utils.Retry(func() error {
 				return r.transactionRepo.RollBackConsumed(ctx, consumed)
 			}, "rollback of MarkAsConsumed")
 			log.Error().Err(err)
-		}()
+		})
 		log.Error().Err(err)
 		return ErrFailedDebitOperation
 	}
 
 	err = r.credit(ctx, receiver, owner, receiver, amount)
 	if err != nil {
-		go func() {
+		utils.Go(func() {
 			err := utils.Retry(func() error {
 				return r.transactionRepo.RollBackConsumed(ctx, consumed)
 			}, "rollback of MarkAsConsumed")
 			log.Error().Err(err)
-		}()
+		})
 		log.Error().Err(err)
 		return ErrFaileCreditOperation
 	}
@@ -252,12 +252,12 @@ func (r *transactionServiceImpl) debit(ctx context.Context, owner string, receiv
 		if remaining > 0 {
 			err := r.credit(ctx, owner, owner, receiver, t.Amount-debit)
 			if err != nil {
-				go func() {
+				utils.Go(func() {
 					err := utils.Retry(func() error {
 						return r.transactionRepo.RollBackConsumed(ctx, transConsumed)
 					}, "rollback of MarkAsConsumed")
 					log.Error().Err(err)
-				}()
+				})
 				log.Error().Err(err)
 				return []string{}, ErrFailedDebitOperation
 			}
