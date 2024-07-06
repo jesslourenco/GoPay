@@ -55,6 +55,7 @@ func (h *apiHandler) Register(router *httprouter.Router) {
 	router.Handle(http.MethodGet, "/transactions/:transaction-id", h.GetTransaction)
 	router.Handle(http.MethodPost, "/accounts/:account-id/deposit", h.Deposit)
 	router.Handle(http.MethodPost, "/accounts/:account-id/withdraw", h.Withdraw)
+	router.Handle(http.MethodPost, "/accounts/:account-id/pay", h.Pay)
 	router.Handle(http.MethodGet, "/accounts/:account-id/balance", h.GetBalance)
 }
 
@@ -282,6 +283,53 @@ func (h *apiHandler) Withdraw(w http.ResponseWriter, r *http.Request, params htt
 
 	if err != nil {
 		log.Error().Err(err).Msg("Handler::Withdraw")
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.WithPayload(w, http.StatusCreated, nil)
+}
+
+func (h *apiHandler) Pay(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	owner := params.ByName(AccountIdParam)
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, OneMegabyte))
+	if err != nil {
+		log.Error().Err(err).Msg(err.Error())
+		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer r.Body.Close()
+
+	payment := models.PayReq{}
+	err = jsoniter.Unmarshal(body, &payment)
+	if err != nil {
+		log.Error().Err(err).Msg(err.Error())
+		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err = h.transactionSvc.Pay(r.Context(), owner, payment.Receiver, payment.Amount)
+	if err == service.ErrInvalidPaymentOp || err == service.ErrInvalidAmount {
+		log.Error().Err(err).Msg("Handler::Pay")
+		utils.ErrorWithMessage(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err == repository.ErrAccountNotFound {
+		log.Error().Err(err).Msg("Handler::Pay")
+		utils.ErrorWithMessage(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	if err == service.ErrInsufficentBalance {
+		log.Error().Err(err).Msg("Handler::Pay")
+		utils.ErrorWithMessage(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	if err != nil {
+		log.Error().Err(err).Msg("Handler::Pay")
 		utils.ErrorWithMessage(w, http.StatusInternalServerError, err.Error())
 		return
 	}
