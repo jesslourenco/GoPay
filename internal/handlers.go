@@ -310,13 +310,7 @@ func (h *apiHandler) Pay(w http.ResponseWriter, r *http.Request, params httprout
 	}
 
 	err = h.transactionSvc.Pay(r.Context(), owner, payment.Receiver, payment.Amount)
-	if err == service.ErrInvalidPaymentOp {
-		log.Error().Err(err).Msg("Handler::Pay")
-		utils.ErrorWithMessage(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if err == service.ErrInvalidAmount {
+	if err == service.ErrInvalidPaymentOp || err == service.ErrInvalidAmount {
 		log.Error().Err(err).Msg("Handler::Pay")
 		utils.ErrorWithMessage(w, http.StatusBadRequest, err.Error())
 		return
