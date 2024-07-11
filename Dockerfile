@@ -1,11 +1,10 @@
-FROM golang:1.22
+FROM golang
 
 WORKDIR /app
 
-COPY cmd/gopay/main.go .
-COPY go.mod .
+COPY . .
 RUN go mod download
-RUN go build -o api
+RUN go build -o api cmd/gopay/main.go  
 
 EXPOSE 8080
 
