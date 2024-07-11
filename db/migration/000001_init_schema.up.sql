@@ -7,9 +7,9 @@ CREATE TABLE accounts (
 
 CREATE TABLE transactions (
     transaction_id UUID NOT NULL DEFAULT (uuid_generate_v4()),
-    owner UUID,
-    sender UUID,
-    receiver UUID,
+    owner UUID NOT NULL,
+    sender UUID NOT NULL,
+    receiver UUID NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     amount NUMERIC(9, 2) NOT NULL,
     is_consumed BOOLEAN NOT NULL DEFAULT FALSE,
