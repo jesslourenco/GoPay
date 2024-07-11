@@ -1,21 +1,20 @@
 package main
 
 import (
-	"context"
-	"fmt"
+	"database/sql"
 	"net/http"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/gopay/internal"
-	"github.com/gopay/internal/models"
 	"github.com/gopay/internal/repository"
 	"github.com/gopay/internal/service"
+	"github.com/gopay/internal/utils"
+	_ "github.com/lib/pq"
 )
 
-func initDB() {
+/*func initDB() {
 	// temp fake db for accounts and transactions
 	models.Accounts["0001"] = &models.Account{
 		AccountId: "0001",
@@ -60,9 +59,14 @@ func initDB() {
 		Amount:        3000.00,
 		IsConsumed:    false,
 	}
-}
+}*/
 
 func main() {
+	config, err := utils.LoadConfig(".")
+	if err != nil {
+		log.Fatal().Msgf("could not loadconfig: %v", err)
+	}
+
 	transactionRepo := repository.NewTransactionRepo()
 	accountRepo := repository.NewAccountRepo()
 	transactionSvc := service.NewTransactionService(transactionRepo, accountRepo)
@@ -72,19 +76,33 @@ func main() {
 
 	router := internal.Router(apiHandler)
 
-	initDB()
-	initAccounts(accountRepo)
+	// initDB()
+	// initAccounts(accountRepo)
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
-	log.Info().Msg("Server started at port :8080")
+	db, err := sql.Open(config.DbDriver, config.DbSource)
+	if err != nil {
+		log.Fatal().Msgf("Could not connect to database: %v", err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err == nil {
+		log.Info().Msg("Pong")
+		log.Info().Msg("PostgreSql connected successfully...")
+	} else {
+		log.Fatal().Msg("ping failed")
+	}
+
+	log.Info().Msgf("Server started at port %s", config.ServerAddress)
 
 	log.
 		Fatal().
-		Err(http.ListenAndServe(":8080", router)).
+		Err(http.ListenAndServe(config.ServerAddress, router)).
 		Msg("Server closed")
 }
 
-func initAccounts(accountRepo repository.AccountRepo) {
+/*func initAccounts(accountRepo repository.AccountRepo) {
 	accounts := []models.Account{
 		{
 			Name:     "Shankar",
@@ -111,4 +129,4 @@ func initAccounts(accountRepo repository.AccountRepo) {
 		}
 		log.Info().Msg(fmt.Sprintf("%s => %s", id, acc.Name))
 	}
-}
+}*/
