@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/gopay/internal/models"
 )
@@ -65,7 +64,18 @@ func (r *accountRepoPsqlImpl) FindAll(_ context.Context) ([]models.Account, erro
 }
 
 func (r *accountRepoPsqlImpl) FindOne(ctx context.Context, id string) (models.Account, error) {
-	return models.Account{}, errors.New("notn implemented")
+	acc := models.Account{}
+
+	row := r.psql.QueryRow(findOneQ, id)
+	err := row.Scan(&acc.AccountId, &acc.Name, &acc.LastName)
+	if err == sql.ErrNoRows {
+		return acc, ErrAccountNotFound
+	}
+	if err != nil {
+		return models.Account{}, err
+	}
+
+	return acc, nil
 }
 
 func (r *accountRepoPsqlImpl) Create(ctx context.Context, name string, lastname string) (string, error) {
@@ -75,7 +85,8 @@ func (r *accountRepoPsqlImpl) Create(ctx context.Context, name string, lastname 
 
 	var id string
 
-	err := r.psql.QueryRow(createQ, name, lastname).Scan(&id)
+	row := r.psql.QueryRow(createQ, id)
+	err := row.Scan(&id)
 	if err != nil {
 		return "", err
 	}
