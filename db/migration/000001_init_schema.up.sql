@@ -1,6 +1,6 @@
 CREATE TABLE accounts (
     account_id UUID NOT NULL DEFAULT (uuid_generate_v4()),
-    first_name VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     last_name VARCHAR(255) NOT NULL,
     PRIMARY KEY (account_id)
 );

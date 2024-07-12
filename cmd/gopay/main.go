@@ -67,19 +67,6 @@ func main() {
 		log.Fatal().Msgf("could not loadconfig: %v", err)
 	}
 
-	transactionRepo := repository.NewTransactionRepo()
-	accountRepo := repository.NewAccountRepo()
-	transactionSvc := service.NewTransactionService(transactionRepo, accountRepo)
-	accountSvc := service.NewAccountService(accountRepo)
-
-	apiHandler := internal.NewAPIHandler(transactionSvc, accountSvc)
-
-	router := internal.Router(apiHandler)
-
-	// initDB()
-	// initAccounts(accountRepo)
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-
 	db, err := sql.Open(config.DbDriver, config.DbSource)
 	if err != nil {
 		log.Fatal().Msgf("Could not connect to database: %v", err)
@@ -93,6 +80,20 @@ func main() {
 	} else {
 		log.Fatal().Msg("ping failed")
 	}
+
+	transactionRepo := repository.NewTransactionRepo()
+	// accountRepo := repository.NewAccountRepo()
+	accountRepo := repository.NewAccountRepoPsql(db)
+	transactionSvc := service.NewTransactionService(transactionRepo, accountRepo)
+	accountSvc := service.NewAccountService(accountRepo)
+
+	apiHandler := internal.NewAPIHandler(transactionSvc, accountSvc)
+
+	router := internal.Router(apiHandler)
+
+	// initDB()
+	// initAccounts(accountRepo)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
 	log.Info().Msgf("Server started at port %s", config.ServerAddress)
 

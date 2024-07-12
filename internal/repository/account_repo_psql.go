@@ -1,0 +1,84 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+
+	"github.com/gopay/internal/models"
+)
+
+const (
+	createQ = `
+	INSERT INTO accounts 
+	(name, last_name) 
+	VALUES ($1, $2) 
+	RETURNING account_id
+	`
+
+	findAllQ = `
+	SELECT * 
+	FROM accounts
+	`
+
+	findOneQ = `
+	SELECT *
+	FROM accounts
+	WHERE account_id = $1
+	`
+)
+
+type AccountRepoPsql interface {
+	FindAll(ctx context.Context) ([]models.Account, error)
+	FindOne(ctx context.Context, id string) (models.Account, error)
+	Create(ctx context.Context, name string, lastname string) (string, error)
+}
+
+var _ AccountRepoPsql = (*accountRepoPsqlImpl)(nil)
+
+type accountRepoPsqlImpl struct {
+	psql *sql.DB
+}
+
+func NewAccountRepoPsql(db *sql.DB) *accountRepoPsqlImpl {
+	return &accountRepoPsqlImpl{
+		psql: db,
+	}
+}
+
+func (r *accountRepoPsqlImpl) FindAll(_ context.Context) ([]models.Account, error) {
+	accs := []models.Account{}
+
+	rows, err := r.psql.Query(findAllQ)
+	if err != nil {
+		return accs, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		acc := models.Account{}
+		rows.Scan(&acc.AccountId, &acc.Name, &acc.LastName)
+		accs = append(accs, acc)
+	}
+
+	return accs, nil
+}
+
+func (r *accountRepoPsqlImpl) FindOne(ctx context.Context, id string) (models.Account, error) {
+	return models.Account{}, errors.New("notn implemented")
+}
+
+func (r *accountRepoPsqlImpl) Create(ctx context.Context, name string, lastname string) (string, error) {
+	if name == "" || lastname == "" {
+		return "", ErrMissingParams
+	}
+
+	var id string
+
+	err := r.psql.QueryRow(createQ, name, lastname).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
+}
