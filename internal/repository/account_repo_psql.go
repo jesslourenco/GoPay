@@ -21,7 +21,7 @@ const (
 	`
 
 	findOneQ = `
-	SELECT *
+	SELECT account_id, name, last_name
 	FROM accounts
 	WHERE account_id = $1
 	`
@@ -85,7 +85,7 @@ func (r *accountRepoPsqlImpl) Create(ctx context.Context, name string, lastname 
 
 	var id string
 
-	row := r.psql.QueryRow(createQ, id)
+	row := r.psql.QueryRow(createQ, name, lastname)
 	err := row.Scan(&id)
 	if err != nil {
 		return "", err

@@ -27,12 +27,12 @@ func main() {
 	defer db.Close()
 
 	err = db.Ping()
-	if err == nil {
-		log.Info().Msg("Pong")
-		log.Info().Msg("PostgreSql connected successfully...")
-	} else {
+	if err != nil {
 		log.Fatal().Msg("ping failed")
 	}
+
+	log.Info().Msg("Pong")
+	log.Info().Msg("PostgreSql connected successfully...")
 
 	transactionRepo := repository.NewTransactionRepo()
 	accountRepo := repository.NewAccountRepoPsql(db)
