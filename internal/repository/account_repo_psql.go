@@ -16,7 +16,7 @@ const (
 	`
 
 	findAllQ = `
-	SELECT * 
+	SELECT account_id, name, last_name 
 	FROM accounts
 	`
 
