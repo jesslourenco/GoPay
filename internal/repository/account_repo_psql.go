@@ -8,19 +8,19 @@ import (
 )
 
 const (
-	createQ = `
+	createAccQ = `
 	INSERT INTO accounts 
 	(name, last_name) 
 	VALUES ($1, $2) 
 	RETURNING account_id
 	`
 
-	findAllQ = `
+	findAllAccsQ = `
 	SELECT account_id, name, last_name 
 	FROM accounts
 	`
 
-	findOneQ = `
+	findOneAccQ = `
 	SELECT account_id, name, last_name
 	FROM accounts
 	WHERE account_id = $1
@@ -48,7 +48,7 @@ func NewAccountRepoPsql(db *sql.DB) *accountRepoPsqlImpl {
 func (r *accountRepoPsqlImpl) FindAll(_ context.Context) ([]models.Account, error) {
 	accs := []models.Account{}
 
-	rows, err := r.psql.Query(findAllQ)
+	rows, err := r.psql.Query(findAllAccsQ)
 	if err != nil {
 		return accs, err
 	}
@@ -66,7 +66,7 @@ func (r *accountRepoPsqlImpl) FindAll(_ context.Context) ([]models.Account, erro
 func (r *accountRepoPsqlImpl) FindOne(ctx context.Context, id string) (models.Account, error) {
 	acc := models.Account{}
 
-	row := r.psql.QueryRow(findOneQ, id)
+	row := r.psql.QueryRow(findOneAccQ, id)
 	err := row.Scan(&acc.AccountId, &acc.Name, &acc.LastName)
 	if err == sql.ErrNoRows {
 		return acc, ErrAccountNotFound
@@ -85,7 +85,7 @@ func (r *accountRepoPsqlImpl) Create(ctx context.Context, name string, lastname 
 
 	var id string
 
-	row := r.psql.QueryRow(createQ, name, lastname)
+	row := r.psql.QueryRow(createAccQ, name, lastname)
 	err := row.Scan(&id)
 	if err != nil {
 		return "", err

@@ -34,7 +34,7 @@ func main() {
 	log.Info().Msg("Pong")
 	log.Info().Msg("PostgreSql connected successfully...")
 
-	transactionRepo := repository.NewTransactionRepo()
+	transactionRepo := repository.NewTransactionRepoPsql(db)
 	accountRepo := repository.NewAccountRepoPsql(db)
 	transactionSvc := service.NewTransactionService(transactionRepo, accountRepo)
 	accountSvc := service.NewAccountService(accountRepo)
